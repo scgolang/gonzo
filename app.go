@@ -63,9 +63,12 @@ func (app *App) Add(msg *osc.Message) error {
 	if err != nil {
 		return errors.Wrap(err, "could not read progname")
 	}
-	cmd := exec.Command(progname)
+	var (
+		cmd       = exec.Command(progname)
+		localAddr = app.Conn.LocalAddr().String()
+	)
 	cmd.Env = []string{
-		"NSM_URL=" + app.Conn.LocalAddr().String(),
+		"NSM_URL=" + localAddr,
 	}
 	app.Go(cmd.Run)
 	return nil
