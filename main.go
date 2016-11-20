@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	Home = path.Join(os.Getenv("HOME"), "nsm-sessions")
+	Home = path.Join(os.Getenv("HOME"), "gonzo-sessions")
 )
 
 func main() {

@@ -2,7 +2,6 @@ package main
 
 import (
 	"net"
-	"os/exec"
 	"strconv"
 
 	"github.com/pkg/errors"
@@ -55,23 +54,6 @@ func (app *App) dispatcher() osc.Dispatcher {
 		nsm.AddressServerAnnounce: app.Announce,
 		nsm.AddressReply:          app.Reply,
 	}
-}
-
-// Add starts a new client program.
-func (app *App) Add(msg *osc.Message) error {
-	progname, err := msg.ReadString()
-	if err != nil {
-		return errors.Wrap(err, "could not read progname")
-	}
-	var (
-		cmd       = exec.Command(progname)
-		localAddr = app.Conn.LocalAddr().String()
-	)
-	cmd.Env = []string{
-		"NSM_URL=" + localAddr,
-	}
-	app.Go(cmd.Run)
-	return nil
 }
 
 // Announce announces new clients.
