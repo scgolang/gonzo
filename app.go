@@ -28,6 +28,7 @@ func NewApp(config Config) (*App, error) {
 
 // initialize initializes the application.
 func (app *App) initialize() error {
+	// Initialize the osc listener.
 	listenAddr := net.JoinHostPort(app.Host, strconv.Itoa(app.Port))
 	addr, err := net.ResolveUDPAddr("udp", listenAddr)
 	if err != nil {
