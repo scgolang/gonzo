@@ -5,11 +5,13 @@ import (
 	"os"
 
 	"github.com/pkg/errors"
+	"github.com/scgolang/nsm"
 	"github.com/scgolang/osc"
 )
 
 // ListProjects replies with a list of projects.
 func (app *App) ListProjects(msg *osc.Message) error {
+	// Setup a connection to the sender.
 	addr := msg.Sender()
 	sender, err := net.ResolveUDPAddr("udp", addr.String())
 	if err != nil {
@@ -20,14 +22,35 @@ func (app *App) ListProjects(msg *osc.Message) error {
 		return errors.Wrapf(err, "connect to sender at %s", sender.String())
 	}
 
+	// Read the projects from disk and send each one as a reply message.
+	if err := app.sendProjects(conn); err != nil {
+		return errors.Wrap(err, "sending projects")
+	}
+
+	// Signal the client we are done.
+	done, err := osc.NewMessage(nsm.AddressReply)
+	if err != nil {
+		return errors.Wrap(err, "create done reply")
+	}
+	if err := done.WriteString(nsm.AddressServerList); err != nil {
+		return errors.Wrap(err, "writing reply address")
+	}
+	return errors.Wrap(conn.Send(done), "sending done message")
+}
+
+// sendProjects sends the list of projects as individual reply messages.
+func (app *App) sendProjects(conn osc.Conn) error {
 	projects, err := app.readProjects()
 	if err != nil {
 		return errors.Wrap(err, "read projects")
 	}
 	for _, project := range projects {
-		reply, err := osc.NewMessage("/reply")
+		reply, err := osc.NewMessage(nsm.AddressReply)
 		if err != nil {
 			return errors.Wrap(err, "create osc message")
+		}
+		if err := reply.WriteString(nsm.AddressServerList); err != nil {
+			return errors.Wrap(err, "writing reply address")
 		}
 		if err := reply.WriteString(project); err != nil {
 			return errors.Wrap(err, "add string to osc message")
