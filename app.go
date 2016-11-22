@@ -53,6 +53,7 @@ func (app *App) dispatcher() osc.Dispatcher {
 	return osc.Dispatcher{
 		nsm.AddressServerAdd:      app.Add,
 		nsm.AddressServerAnnounce: app.Announce,
+		nsm.AddressServerList:     app.ListProjects,
 		nsm.AddressReply:          app.Reply,
 	}
 }
