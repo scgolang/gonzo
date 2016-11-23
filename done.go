@@ -13,7 +13,7 @@ func (app *App) done(conn osc.Conn, addr string) error {
 	if err != nil {
 		return errors.Wrap(err, "create done reply")
 	}
-	if err := done.WriteString(nsm.AddressServerList); err != nil {
+	if err := done.WriteString(addr); err != nil {
 		return errors.Wrap(err, "writing reply address")
 	}
 	if err := done.WriteString(nsm.DoneString); err != nil {
