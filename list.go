@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"net"
 	"os"
 
@@ -23,8 +22,8 @@ func (app *App) ListProjects(msg *osc.Message) error {
 		return errors.Wrapf(err, "connect to sender at %s", sender.String())
 	}
 
-	log.Println("connected to " + addr.String())
-	log.Println("listing projects")
+	app.debug("connected to " + addr.String())
+	app.debug("listing projects")
 
 	// Read the projects from disk and send each one as a reply message.
 	if err := app.sendProjects(conn); err != nil {
@@ -35,7 +34,7 @@ func (app *App) ListProjects(msg *osc.Message) error {
 	if err := app.done(conn, nsm.AddressServerList); err != nil {
 		return errors.Wrap(err, "sending done message")
 	}
-	log.Println("sent done message")
+	app.debug("sent done message")
 	return nil
 }
 
@@ -45,7 +44,9 @@ func (app *App) sendProjects(conn osc.Conn) error {
 	if err != nil {
 		return errors.Wrap(err, "read projects")
 	}
-	log.Printf("read %d projects", len(projects))
+
+	app.debugf("read %d project(s)", len(projects))
+
 	for _, project := range projects {
 		reply, err := osc.NewMessage(nsm.AddressReply)
 		if err != nil {

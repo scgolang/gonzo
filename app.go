@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"net"
 	"strconv"
 
@@ -66,4 +67,18 @@ func (app *App) Announce(msg *osc.Message) error {
 // Reply handles replies from clients.
 func (app *App) Reply(msg *osc.Message) error {
 	return nil
+}
+
+// debug prints a debug message.
+func (app *App) debug(msg string) {
+	if app.Debug {
+		log.Println(msg)
+	}
+}
+
+// debugf prints a debug message with printf semantics.
+func (app *App) debugf(format string, args ...interface{}) {
+	if app.Debug {
+		log.Printf(format, args...)
+	}
 }
