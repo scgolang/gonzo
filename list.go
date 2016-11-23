@@ -11,27 +11,15 @@ import (
 
 // ListProjects replies with a list of projects.
 func (app *App) ListProjects(msg *osc.Message) error {
-	// Setup a connection to the sender.
-	addr := msg.Sender()
-	sender, err := net.ResolveUDPAddr("udp", addr.String())
-	if err != nil {
-		return errors.Wrapf(err, "resolve sender address from %s", addr.String())
-	}
-	conn, err := osc.DialUDP("udp", nil, sender)
-	if err != nil {
-		return errors.Wrapf(err, "connect to sender at %s", sender.String())
-	}
-
-	app.debug("connected to " + addr.String())
 	app.debug("listing projects")
 
 	// Read the projects from disk and send each one as a reply message.
-	if err := app.sendProjects(conn); err != nil {
+	if err := app.sendProjects(msg.Sender()); err != nil {
 		return errors.Wrap(err, "sending projects")
 	}
 
 	// Signal the client we are done.
-	if err := app.done(conn, nsm.AddressServerList); err != nil {
+	if err := app.done(msg.Sender(), nsm.AddressServerList); err != nil {
 		return errors.Wrap(err, "sending done message")
 	}
 	app.debug("sent done message")
@@ -39,7 +27,7 @@ func (app *App) ListProjects(msg *osc.Message) error {
 }
 
 // sendProjects sends the list of projects as individual reply messages.
-func (app *App) sendProjects(conn osc.Conn) error {
+func (app *App) sendProjects(addr net.Addr) error {
 	projects, err := app.readProjects()
 	if err != nil {
 		return errors.Wrap(err, "read projects")
@@ -58,7 +46,7 @@ func (app *App) sendProjects(conn osc.Conn) error {
 		if err := reply.WriteString(project); err != nil {
 			return errors.Wrap(err, "add string to osc message")
 		}
-		if err := conn.Send(reply); err != nil {
+		if err := app.SendTo(addr, reply); err != nil {
 			return errors.Wrap(err, "send reply")
 		}
 	}
