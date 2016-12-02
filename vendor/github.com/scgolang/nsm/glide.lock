@@ -1,0 +1,16 @@
+hash: 9652cd5b2e2555dc8ee5f8de1ce2a89ed10f1526e5c3bf1a30210ecd0547a362
+updated: 2016-12-01T21:45:57.429332831-06:00
+imports:
+- name: github.com/pkg/errors
+  version: 645ef00459ed84a119197bfb8d8205042c6df63d
+- name: github.com/scgolang/osc
+  version: ea7e8cdae0a3eae66bb41d9f1f32dd9e878dc071
+- name: golang.org/x/net
+  version: 97edce0b2e423f6a8debb459af47f4a3cb4ff954
+  subpackages:
+  - context
+- name: golang.org/x/sync
+  version: 81567d9de79acf53912da6b8d098d3a38069e526
+  subpackages:
+  - errgroup
+testImports: []

@@ -1,0 +1,3 @@
+Package nsm implements the non session manager OSC protocol.
+See http://non.tuxfamily.org/nsm/API.html for info about the non protocol.
+See http://godoc.org/github.com/scgolang/nsm for package documentation.
