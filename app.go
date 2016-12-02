@@ -60,12 +60,12 @@ func (app *App) dispatcher() osc.Dispatcher {
 }
 
 // Announce announces new clients.
-func (app *App) Announce(msg *osc.Message) error {
+func (app *App) Announce(msg osc.Message) error {
 	return nil
 }
 
 // Reply handles replies from clients.
-func (app *App) Reply(msg *osc.Message) error {
+func (app *App) Reply(msg osc.Message) error {
 	return nil
 }
 

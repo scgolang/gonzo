@@ -8,8 +8,11 @@ import (
 )
 
 // Add starts a new client program.
-func (app *App) Add(msg *osc.Message) error {
-	progname, err := msg.ReadString()
+func (app *App) Add(msg osc.Message) error {
+	if len(msg.Arguments) < 1 {
+		return errors.New("expected at least 1 argument")
+	}
+	progname, err := msg.Arguments[0].ReadString()
 	if err != nil {
 		return errors.Wrap(err, "could not read progname")
 	}

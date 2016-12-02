@@ -10,16 +10,16 @@ import (
 )
 
 // ListProjects replies with a list of projects.
-func (app *App) ListProjects(msg *osc.Message) error {
+func (app *App) ListProjects(msg osc.Message) error {
 	app.debug("listing projects")
 
 	// Read the projects from disk and send each one as a reply message.
-	if err := app.sendProjects(msg.Sender()); err != nil {
+	if err := app.sendProjects(msg.Sender); err != nil {
 		return errors.Wrap(err, "sending projects")
 	}
 
 	// Signal the client we are done.
-	if err := app.done(msg.Sender(), nsm.AddressServerList); err != nil {
+	if err := app.done(msg.Sender, nsm.AddressServerList); err != nil {
 		return errors.Wrap(err, "sending done message")
 	}
 	app.debug("sent done message")
@@ -36,18 +36,14 @@ func (app *App) sendProjects(addr net.Addr) error {
 	app.debugf("read %d project(s)", len(projects))
 
 	for _, project := range projects {
-		reply, err := osc.NewMessage(nsm.AddressReply)
-		if err != nil {
-			return errors.Wrap(err, "create osc message")
-		}
-		if err := reply.WriteString(nsm.AddressServerList); err != nil {
-			return errors.Wrap(err, "writing reply address")
-		}
-		if err := reply.WriteString(project); err != nil {
-			return errors.Wrap(err, "add string to osc message")
-		}
-		if err := app.SendTo(addr, reply); err != nil {
-			return errors.Wrap(err, "send reply")
+		if err := app.SendTo(addr, osc.Message{
+			Address: nsm.AddressReply,
+			Arguments: osc.Arguments{
+				osc.String(nsm.AddressServerList),
+				osc.String(project),
+			},
+		}); err != nil {
+			return errors.Wrapf(err, "send %s reply", nsm.AddressServerList)
 		}
 	}
 	return nil
