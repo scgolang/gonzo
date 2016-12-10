@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"path"
@@ -16,7 +17,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	app, err := NewApp(config)
+	app, err := NewApp(context.Background(), config)
 	if err != nil {
 		log.Fatal(err)
 	}
