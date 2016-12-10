@@ -18,6 +18,10 @@ type App struct {
 	Config
 	osc.Conn
 
+	Announcements chan osc.Message
+	Errors        chan osc.Message
+	Replies       chan osc.Message
+
 	clients ClientMap
 	cmdgrp  *exec.CmdGroup
 	ctx     context.Context
@@ -29,7 +33,12 @@ func NewApp(ctx context.Context, config Config) (*App, error) {
 	g, gctx := errgroup.WithContext(ctx)
 
 	app := &App{
-		Config:  config,
+		Config: config,
+
+		Announcements: make(chan osc.Message),
+		Errors:        make(chan osc.Message),
+		Replies:       make(chan osc.Message),
+
 		clients: ClientMap{},
 		cmdgrp:  exec.NewCmdGroup(gctx),
 		ctx:     gctx,
@@ -56,26 +65,26 @@ func (app *App) Reply(msg osc.Message) error {
 	return nil
 }
 
-// ReplyError replies to a client for a unsuccessful command.
-func (app *App) ReplyError(remote net.Addr, address string, code nsm.Code, message string) error {
-	return errors.Wrap(app.SendTo(remote, osc.Message{
+// ReplyError returns the message used to signal an error to a client.
+func (app *App) ReplyError(address string, code nsm.Code, message string) osc.Message {
+	return osc.Message{
 		Address: nsm.AddressError,
 		Arguments: osc.Arguments{
 			osc.String(address),
 			osc.Int(code),
 			osc.String(message),
 		},
-	}), "sending reply success")
+	}
 }
 
-// ReplySuccess replies to a client for a successful command.
-func (app *App) ReplySuccess(remote net.Addr, address string) error {
-	return errors.Wrap(app.SendTo(remote, osc.Message{
+// ReplySuccess returns the message used to signal a successful operation.
+func (app *App) ReplySuccess(remote net.Addr, address string) osc.Message {
+	return osc.Message{
 		Address: nsm.AddressReply,
 		Arguments: osc.Arguments{
 			osc.String(address),
 		},
-	}), "sending reply success")
+	}
 }
 
 // ServeOSC serves osc requests.
