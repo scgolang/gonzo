@@ -35,18 +35,15 @@ func (app *App) Add(msg osc.Message) error {
 	}
 	app.debugf("added %s", cmdname)
 
-	// HACK: osc server needs to support non-blocking method dispatch
-	app.Go(func() error {
-		// Wait for announcement from the new client then respond to
-		// the client who issued the add request.
-		select {
-		case <-time.After(2 * time.Second):
-			return errors.New("timeout")
-		case announcement := <-app.Announcements:
-			m := "sending announcement response to client who requested the add operation"
-			return errors.Wrap(app.SendTo(msg.Sender, announcement), m)
-		}
-	})
+	// Wait for announcement from the new client then respond to
+	// the client who issued the add request.
+	select {
+	case <-time.After(2 * time.Second):
+		return errors.New("timeout")
+	case announcement := <-app.Announcements:
+		m := "sending announcement response to client who requested the add operation"
+		return errors.Wrap(app.SendTo(msg.Sender, announcement), m)
+	}
 
 	return nil
 }
