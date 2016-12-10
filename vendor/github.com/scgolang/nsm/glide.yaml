@@ -1,9 +1,0 @@
-package: github.com/scgolang/nsm
-import:
-- package: github.com/pkg/errors
-  version: ^0.8.0
-- package: github.com/scgolang/osc
-  version: ^0.9.0
-- package: golang.org/x/sync
-  subpackages:
-  - errgroup

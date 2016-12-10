@@ -14,16 +14,16 @@ import (
 
 // OSC addresses.
 const (
-	AddressClientOpen            = "/nsm/client/open"
-	AddressClientSave            = "/nsm/client/save"
-	AddressClientSessionIsLoaded = "/nsm/client/session_is_loaded"
-	AddressClientShowOptionalGUI = "/nsm/client/show_optional_gui"
 	AddressClientHideOptionalGUI = "/nsm/client/hide_optional_gui"
-	AddressClientIsDirty         = "/nsm/client/is_dirty"
-	AddressClientIsClean         = "/nsm/client/is_clean"
+	AddressClientShowOptionalGUI = "/nsm/client/show_optional_gui"
 	AddressClientGUIHidden       = "/nsm/client/gui_is_hidden"
 	AddressClientGUIShowing      = "/nsm/client/gui_is_showing"
+	AddressClientIsClean         = "/nsm/client/is_clean"
+	AddressClientIsDirty         = "/nsm/client/is_dirty"
+	AddressClientOpen            = "/nsm/client/open"
 	AddressClientProgress        = "/nsm/client/progress"
+	AddressClientSave            = "/nsm/client/save"
+	AddressClientSessionIsLoaded = "/nsm/client/session_is_loaded"
 	AddressClientStatus          = "/nsm/client/message"
 	AddressError                 = "/error"
 	AddressReply                 = "/reply"
@@ -64,48 +64,56 @@ type ClientConfig struct {
 	Major        int32
 	Minor        int32
 	PID          int
-	Timeout      time.Duration
-	Session      Session
-	ListenAddr   string
-	DialNetwork  string
-	NsmURL       string
+
+	// Timeout is an amount of time we should wait for a response from the nsm server.
+	Timeout time.Duration
+
+	Session              Session
+	ListenAddr           string
+	DialNetwork          string
+	NsmURL               string
+	WaitForAnnounceReply bool
+
+	failSend int // Trigger a failed Send for a particular call. The first send is 1.
 }
 
 // Client represents an nsm client.
 type Client struct {
 	ClientConfig
 	osc.Conn
-	errgroup.Group
 
 	ReplyChan chan osc.Message
-	ctx       context.Context
+
+	group      *errgroup.Group
+	ctx        context.Context
+	closedChan chan struct{}
+
+	currSend int
 }
 
 // NewClient creates a new nsm-enabled application.
 // If config.Session is nil then ErrNilSession will be returned.
 // If NSM_URL is not defined in the environment then ErrNoNsmURL will be returned.
-func NewClient(config ClientConfig) (*Client, error) {
-	return NewClientG(config, context.Background())
-}
-
-// NewClientG creates a new nsm-enabled application whose goroutines
-// are part of the provided errgroup.Group.
-// If config.Session is nil then ErrNilSession will be returned.
-// If NSM_URL is not defined in the environment then ErrNoNsmURL will be returned.
 // TODO: validate config?
-func NewClientG(config ClientConfig, ctx context.Context) (*Client, error) {
+func NewClient(ctx context.Context, config ClientConfig) (*Client, error) {
 	if config.Session == nil {
 		return nil, ErrNilSession
 	}
 	if config.Timeout == time.Duration(0) {
 		config.Timeout = DefaultTimeout
 	}
+	g, gctx := errgroup.WithContext(ctx)
+
 	// Create the client.
 	c := &Client{
 		ClientConfig: config,
 		ReplyChan:    make(chan osc.Message),
-		ctx:          ctx,
+		closedChan:   make(chan struct{}),
+		group:        g,
+		ctx:          gctx,
 	}
+	c.Defaults()
+
 	if err := c.Initialize(); err != nil {
 		return nil, errors.Wrap(err, "initialize client")
 	}
@@ -115,12 +123,6 @@ func NewClientG(config ClientConfig, ctx context.Context) (*Client, error) {
 // Initialize initializes the client.
 func (c *Client) Initialize() error {
 	// Get connection.
-	if c.ListenAddr == "" {
-		c.ListenAddr = "0.0.0.0:0"
-	}
-	if c.DialNetwork == "" {
-		c.DialNetwork = "udp"
-	}
 	if err := c.DialUDP(c.ListenAddr); err != nil {
 		return errors.Wrap(err, "dial udp")
 	}
@@ -133,8 +135,17 @@ func (c *Client) Initialize() error {
 		_ = c.Close() // Best effort.
 		return errors.Wrap(err, "announce app")
 	}
-
 	return nil
+}
+
+// Defaults sets default config values for the client.
+func (c *Client) Defaults() {
+	if c.ListenAddr == "" {
+		c.ListenAddr = "0.0.0.0:0"
+	}
+	if c.DialNetwork == "" {
+		c.DialNetwork = "udp"
+	}
 }
 
 // DialUDP initializes the connection to non session manager.
@@ -165,7 +176,7 @@ func (c *Client) DialUDP(localAddr string) error {
 	if err != nil {
 		return errors.Wrap(err, "resolve udp listening address")
 	}
-	conn, _ := osc.DialUDP(c.DialNetwork, laddr, raddr) // Never fails
+	conn, _ := osc.DialUDPContext(c.ctx, c.DialNetwork, laddr, raddr) // Never fails
 	c.Conn = conn
 
 	return nil
@@ -177,9 +188,32 @@ func (c *Client) StartOSC() {
 	c.Go(c.handleClientInfo)
 }
 
+// Go runs a goroutine as part of an errgroup.Group
+func (c *Client) Go(f func() error) {
+	c.group.Go(f)
+}
+
+// Wait waits for all the goroutines in an errgroup.Group to finish
+func (c *Client) Wait() error {
+	return c.group.Wait()
+}
+
+// Send sends an osc message.
+func (c *Client) Send(msg osc.Message) error {
+	if c.failSend == 0 {
+		return c.Conn.Send(msg)
+	}
+	c.currSend++
+	if c.currSend == c.failSend {
+		return errors.New("fail send")
+	}
+	return c.Conn.Send(msg)
+}
+
 // Close closes the nsm client.
 func (c *Client) Close() error {
 	close(c.ReplyChan)
+	close(c.closedChan)
 	return c.Conn.Close()
 }
 
@@ -218,28 +252,6 @@ func (c *Client) dispatcher() osc.Dispatcher {
 	return d
 }
 
-// wait waits for a reply to a message that was sent to address.
-func (c *Client) wait(address string) (osc.Message, error) {
-	timeout := time.After(c.Timeout)
-	select {
-	case <-timeout:
-		return osc.Message{}, ErrTimeout
-	case msg := <-c.ReplyChan:
-		if len(msg.Arguments) < 1 {
-			return osc.Message{}, errors.New("reply message should contain at least one argument")
-		}
-		replyAddr, err := msg.Arguments[0].ReadString()
-		if err != nil {
-			return osc.Message{}, errors.Wrap(err, "first argument of reply message should be a string")
-		}
-		if expected, got := address, replyAddr; expected != got {
-			return osc.Message{}, errors.Errorf("expected %s, got %s", expected, got)
-		} else {
-			return msg, nil
-		}
-	}
-}
-
 // handle handles the return values from a Session's method.
 // The method must be associated with the provided address,
 // e.g. ClientOpen should be passed after calling a Session's
@@ -256,6 +268,7 @@ func (c *Client) handleError(address string, err Error) error {
 	msg := osc.Message{
 		Address: AddressError,
 		Arguments: osc.Arguments{
+			osc.String(address),
 			osc.Int(int32(err.Code())),
 			osc.String(err.Error()),
 		},
@@ -272,8 +285,5 @@ func (c *Client) handleReply(address, message string) error {
 			osc.String(message),
 		},
 	}
-	if err := c.Send(msg); err != nil {
-		return errors.Wrap(err, "send reply")
-	}
-	return nil
+	return errors.Wrap(c.Send(msg), "send reply")
 }

@@ -6,14 +6,6 @@ import (
 	"github.com/scgolang/osc"
 )
 
-// Message priority levels.
-const (
-	PriorityNever = iota
-	PriorityLow
-	PriorityMed
-	PriorityHigh
-)
-
 // Session represents the behavior of a client
 // with respect to the control messages that are
 // sent by Non Session Manager.
@@ -142,30 +134,22 @@ func (s SessionInfo) ShowGUI(show bool) error {
 
 // Dirty returns nil.
 func (s SessionInfo) Dirty() chan bool {
-	c := make(chan bool)
-	close(c)
-	return c
+	return nil
 }
 
 // GUIShowing returns nil.
 func (s SessionInfo) GUIShowing() chan bool {
-	c := make(chan bool)
-	close(c)
-	return c
+	return nil
 }
 
 // Progress returns nil.
 func (s SessionInfo) Progress() chan float32 {
-	c := make(chan float32)
-	close(c)
-	return c
+	return nil
 }
 
 // ClientStatus returns nil.
 func (s SessionInfo) ClientStatus() chan ClientStatus {
-	c := make(chan ClientStatus)
-	close(c)
-	return c
+	return nil
 }
 
 // Methods returns an optional osc dispatcher for adding
@@ -176,6 +160,14 @@ func (s SessionInfo) Methods() osc.Dispatcher {
 	return osc.Dispatcher{}
 }
 
+// Message priority levels.
+const (
+	PriorityNever = iota
+	PriorityLow
+	PriorityMed
+	PriorityHigh
+)
+
 // ClientStatus represents a status sent to Non Session Manager.
 // Priority should be used to indicate how important it is for
 // the user to see the status message, with 0 being lowest priority
@@ -183,6 +175,11 @@ func (s SessionInfo) Methods() osc.Dispatcher {
 type ClientStatus struct {
 	Priority int
 	Message  string
+}
+
+// Equal returns true if one ClientStatus equals another and false otherwise.
+func (status ClientStatus) Equal(other ClientStatus) bool {
+	return status.Priority == other.Priority && status.Message == other.Message
 }
 
 // ServerInfo contains info about Non Session Manager itself.

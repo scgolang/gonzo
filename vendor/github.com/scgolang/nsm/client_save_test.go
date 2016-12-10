@@ -1,7 +1,6 @@
 package nsm
 
 import (
-	"os"
 	"testing"
 
 	"github.com/scgolang/osc"
@@ -13,19 +12,11 @@ func TestClientSave(t *testing.T) {
 	nsmd := newMockNsmd(t, mockNsmdConfig{listenAddr: "127.0.0.1:0"})
 	defer func() { _ = nsmd.Close() }() // Best effort.
 
-	c, err := NewClient(ClientConfig{
-		Name:         "test_client",
-		Capabilities: Capabilities{"switch", "progress"},
-		Major:        1,
-		Minor:        2,
-		PID:          os.Getpid(),
-		Session: &mockSession{
-			save: mockReply{Message: "save successful"},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
+	config := testConfig()
+	config.Session = &mockSession{
+		save: mockReply{Message: "save successful"},
 	}
+	c := newClient(t, config)
 	defer func() { _ = c.Close() }() // Best effort.
 
 	reply := nsmd.SaveSession(osc.Message{

@@ -1,6 +1,7 @@
 package nsm
 
 import (
+	"context"
 	"log"
 )
 
@@ -23,9 +24,10 @@ func (c *ExampleClient) Save() (string, Error) {
 }
 
 func Example_client() {
-	c, err := NewClient(ClientConfig{
+	config := ClientConfig{
 		Session: &ExampleClient{},
-	})
+	}
+	c, err := NewClient(context.Background(), config)
 	if err != nil {
 		log.Fatal(err)
 	}
