@@ -11,6 +11,25 @@ import (
 
 // Add starts a new client program.
 func (app *App) Add(msg osc.Message) error {
+	if err := app.addFrom(msg); err != nil {
+		return errors.Wrap(err, "adding client from osc message")
+	}
+
+	// Wait for announcement from the new client then respond to
+	// the client who issued the add request.
+	select {
+	case <-time.After(2 * time.Second):
+		return errors.New("timeout")
+	case announcement := <-app.Announcements:
+		m := "sending announcement response to client who requested the add operation"
+		return errors.Wrap(app.SendTo(msg.Sender, announcement), m)
+	}
+
+	return nil
+}
+
+// addFrom adds a new client from an osc message.
+func (app *App) addFrom(msg osc.Message) error {
 	if len(msg.Arguments) != 2 {
 		return errors.New("add expects 2 arguments")
 	}
@@ -34,16 +53,6 @@ func (app *App) Add(msg osc.Message) error {
 		return errors.Wrap(err, "adding command "+progname)
 	}
 	app.debugf("added %s", cmdname)
-
-	// Wait for announcement from the new client then respond to
-	// the client who issued the add request.
-	select {
-	case <-time.After(2 * time.Second):
-		return errors.New("timeout")
-	case announcement := <-app.Announcements:
-		m := "sending announcement response to client who requested the add operation"
-		return errors.Wrap(app.SendTo(msg.Sender, announcement), m)
-	}
 
 	return nil
 }

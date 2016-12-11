@@ -17,12 +17,6 @@ func (app *App) ListProjects(msg osc.Message) error {
 	if err := app.sendProjects(msg.Sender); err != nil {
 		return errors.Wrap(err, "sending projects")
 	}
-
-	// Signal the client we are done.
-	if err := app.done(msg.Sender, nsm.AddressServerList); err != nil {
-		return errors.Wrap(err, "sending done message")
-	}
-	app.debug("sent done message")
 	return nil
 }
 
@@ -35,18 +29,17 @@ func (app *App) sendProjects(addr net.Addr) error {
 
 	app.debugf("read %d project(s)", len(projects))
 
-	for _, project := range projects {
-		if err := app.SendTo(addr, osc.Message{
-			Address: nsm.AddressReply,
-			Arguments: osc.Arguments{
-				osc.String(nsm.AddressServerList),
-				osc.String(project),
-			},
-		}); err != nil {
-			return errors.Wrapf(err, "send %s reply", nsm.AddressServerList)
-		}
+	msg := osc.Message{
+		Address: nsm.AddressReply,
+		Arguments: osc.Arguments{
+			osc.String(nsm.AddressServerProjects),
+			osc.Int(len(projects)),
+		},
 	}
-	return nil
+	for _, project := range projects {
+		msg.Arguments = append(msg.Arguments, osc.String(project))
+	}
+	return errors.Wrapf(app.SendTo(addr, msg), "send %s reply", nsm.AddressServerProjects)
 }
 
 // readProjects reads the projects from the gonzo sessions directory.

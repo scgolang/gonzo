@@ -116,8 +116,9 @@ func (app *App) debugf(format string, args ...interface{}) {
 func (app *App) dispatcher() osc.Dispatcher {
 	return osc.Dispatcher{
 		nsm.AddressServerAdd:      app.Add,
+		nsm.AddressServerClients:  app.ListClients,
 		nsm.AddressServerAnnounce: app.Announce,
-		nsm.AddressServerList:     app.ListProjects,
+		nsm.AddressServerProjects: app.ListProjects,
 		"/ping":                   app.Ping,
 		nsm.AddressReply:          app.Reply,
 	}

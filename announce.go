@@ -88,5 +88,6 @@ func (app *App) addClientFromAnnounce(msg osc.Message) error {
 		Major:           major,
 		Minor:           minor,
 	}
+	app.debugf("added client to client map pid=%d name=%s major=%d minor=%d", pid, appname, major, minor)
 	return nil
 }
