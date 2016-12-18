@@ -33,7 +33,7 @@ const (
 	AddressServerClients         = "/nsm/server/clients"
 	AddressServerClose           = "/nsm/server/close"
 	AddressServerDuplicate       = "/nsm/server/duplicate"
-	AddressServerProjects        = "/nsm/server/projects"
+	AddressServerSessions        = "/nsm/server/list"
 	AddressServerNew             = "/nsm/server/new"
 	AddressServerOpen            = "/nsm/server/open"
 	AddressServerQuit            = "/nsm/server/quit"
