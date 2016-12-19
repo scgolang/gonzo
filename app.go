@@ -118,7 +118,7 @@ func (app *App) dispatcher() osc.Dispatcher {
 		nsm.AddressServerAdd:      app.Add,
 		nsm.AddressServerClients:  app.ListClients,
 		nsm.AddressServerAnnounce: app.Announce,
-		nsm.AddressServerProjects: app.ListProjects,
+		nsm.AddressServerSessions: app.ListSessions,
 		"/ping":                   app.Ping,
 		nsm.AddressReply:          app.Reply,
 	}
