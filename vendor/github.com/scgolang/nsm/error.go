@@ -10,7 +10,7 @@ const (
 	ErrBlacklisted     Code = -3
 	ErrLaunchFailed    Code = -4
 	ErrNoSuchFile      Code = -5
-	ErrSoSessionOpen   Code = -6
+	ErrNoSessionOpen   Code = -6
 	ErrUnsavedChanges  Code = -7
 	ErrNotNow          Code = -8
 	ErrBadProject      Code = -9

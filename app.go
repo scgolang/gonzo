@@ -69,6 +69,20 @@ func (app *App) Go(f func() error) {
 	app.errgrp.Go(f)
 }
 
+// OscMethod returns an osc.Method which is based on an NsmMethod.
+func (app *App) OscMethod(method NsmMethod, addr string) osc.Method {
+	return func(msg osc.Message) error {
+		var reply osc.Message
+
+		if err := method(msg); err != nil {
+			reply = ReplyError(addr, err.Code(), err.Error())
+		} else {
+			reply = ReplySuccess(msg.Sender, addr)
+		}
+		return errors.Wrap(app.SendTo(msg.Sender, reply), "sending reply")
+	}
+}
+
 // Ping handles /ping messages
 func (app *App) Ping(msg osc.Message) error {
 	return errors.Wrap(app.SendTo(msg.Sender, osc.Message{Address: "/pong"}), "sending pong")
@@ -77,28 +91,6 @@ func (app *App) Ping(msg osc.Message) error {
 // Reply handles replies from clients.
 func (app *App) Reply(msg osc.Message) error {
 	return nil
-}
-
-// ReplyError returns the message used to signal an error to a client.
-func (app *App) ReplyError(address string, code nsm.Code, message string) osc.Message {
-	return osc.Message{
-		Address: nsm.AddressError,
-		Arguments: osc.Arguments{
-			osc.String(address),
-			osc.Int(code),
-			osc.String(message),
-		},
-	}
-}
-
-// ReplySuccess returns the message used to signal a successful operation.
-func (app *App) ReplySuccess(remote net.Addr, address string) osc.Message {
-	return osc.Message{
-		Address: nsm.AddressReply,
-		Arguments: osc.Arguments{
-			osc.String(address),
-		},
-	}
 }
 
 // ServeOSC serves osc requests.
@@ -131,9 +123,9 @@ func (app *App) dispatcher() osc.Dispatcher {
 	return osc.Dispatcher{
 		nsm.AddressServerAdd:      app.Add,
 		nsm.AddressServerClients:  app.ListClients,
-		nsm.AddressServerAnnounce: app.Announce,
+		nsm.AddressServerAnnounce: app.OscMethod(app.Announce, nsm.AddressServerAnnounce),
 		nsm.AddressServerSessions: app.ListSessions,
-		nsm.AddressServerNew:      app.NewSession,
+		nsm.AddressServerNew:      app.OscMethod(app.NewSession, nsm.AddressServerNew),
 		"/ping":                   app.Ping,
 		nsm.AddressReply:          app.Reply,
 	}
@@ -154,4 +146,30 @@ func (app *App) initialize() error {
 	app.Conn = conn
 	app.Go(app.ServeOSC)
 	return nil
+}
+
+// NsmMethod is a utility type that is used by osc methods that should
+// always generate an nsm-style reply to the client.
+type NsmMethod func(msg osc.Message) nsm.Error
+
+// ReplyError returns the message used to signal an error to a client.
+func ReplyError(address string, code nsm.Code, message string) osc.Message {
+	return osc.Message{
+		Address: nsm.AddressError,
+		Arguments: osc.Arguments{
+			osc.String(address),
+			osc.Int(code),
+			osc.String(message),
+		},
+	}
+}
+
+// ReplySuccess returns the message used to signal a successful operation.
+func ReplySuccess(remote net.Addr, address string) osc.Message {
+	return osc.Message{
+		Address: nsm.AddressReply,
+		Arguments: osc.Arguments{
+			osc.String(address),
+		},
+	}
 }
