@@ -22,7 +22,7 @@ func (app *App) Announce(msg osc.Message) error {
 			Arguments: osc.Arguments{
 				osc.String(nsm.AddressServerAnnounce),
 				osc.String(ApplicationName),
-				osc.String(Capabilities.String()),
+				osc.String(app.Capabilities.String()),
 			},
 		}
 	)
@@ -81,13 +81,26 @@ func (app *App) addClientFromAnnounce(msg osc.Message) error {
 	if err != nil {
 		return errors.Wrap(err, "could not read pid in announce message")
 	}
-	app.clients[Pid(pid)] = Client{
+	key := Pid(pid)
+
+	app.clientsMutex.RLock()
+	if _, ok := app.clients[key]; ok {
+		app.clientsMutex.RUnlock()
+		return errors.Errorf("client with pid %d already exists", pid)
+	}
+	app.clientsMutex.RUnlock()
+
+	app.clientsMutex.Lock()
+	app.clients[key] = Client{
 		ApplicationName: appname,
 		Capabilities:    nsm.ParseCapabilities(capabilities),
 		ExecutableName:  executableName,
 		Major:           major,
 		Minor:           minor,
 	}
+	app.clientsMutex.Unlock()
+
 	app.debugf("added client to client map pid=%d name=%s major=%d minor=%d", pid, appname, major, minor)
+
 	return nil
 }

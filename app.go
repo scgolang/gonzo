@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"strconv"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/scgolang/exec"
@@ -22,14 +23,24 @@ type App struct {
 	Errors        chan osc.Message
 	Replies       chan osc.Message
 
-	clients ClientMap
-	cmdgrp  *exec.CmdGroup
-	ctx     context.Context
-	errgrp  *errgroup.Group
+	Capabilities nsm.Capabilities
+
+	clients      ClientMap
+	clientsMutex sync.RWMutex
+
+	cmdgrp   *exec.CmdGroup
+	ctx      context.Context
+	errgrp   *errgroup.Group
+	sessions *Sessions
 }
 
 // NewApp creates a new application.
 func NewApp(ctx context.Context, config Config) (*App, error) {
+	sessions, err := NewSessions(config.Home)
+	if err != nil {
+		return nil, errors.Wrap(err, "opening sessions")
+	}
+
 	g, gctx := errgroup.WithContext(ctx)
 
 	app := &App{
@@ -39,10 +50,13 @@ func NewApp(ctx context.Context, config Config) (*App, error) {
 		Errors:        make(chan osc.Message),
 		Replies:       make(chan osc.Message),
 
-		clients: ClientMap{},
-		cmdgrp:  exec.NewCmdGroup(gctx),
-		ctx:     gctx,
-		errgrp:  g,
+		Capabilities: nsm.Capabilities{nsm.CapServerControl},
+
+		clients:  ClientMap{},
+		cmdgrp:   exec.NewCmdGroup(gctx),
+		ctx:      gctx,
+		errgrp:   g,
+		sessions: sessions,
 	}
 	if err := app.initialize(); err != nil {
 		return nil, errors.Wrap(err, "could not initialize application")
@@ -119,6 +133,7 @@ func (app *App) dispatcher() osc.Dispatcher {
 		nsm.AddressServerClients:  app.ListClients,
 		nsm.AddressServerAnnounce: app.Announce,
 		nsm.AddressServerSessions: app.ListSessions,
+		nsm.AddressServerNew:      app.NewSession,
 		"/ping":                   app.Ping,
 		nsm.AddressReply:          app.Reply,
 	}

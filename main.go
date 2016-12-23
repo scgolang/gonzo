@@ -3,10 +3,6 @@ package main
 import (
 	"context"
 	"log"
-	"os"
-	"path"
-
-	"github.com/scgolang/nsm"
 )
 
 const (
@@ -15,11 +11,6 @@ const (
 
 	// WelcomeMessage is sent to clients in the announce reply.
 	WelcomeMessage = `welcome to gonzo`
-)
-
-var (
-	Home         = path.Join(os.Getenv("HOME"), "gonzo-sessions")
-	Capabilities = nsm.Capabilities{nsm.CapServerControl}
 )
 
 func main() {
