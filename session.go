@@ -22,7 +22,17 @@ type Session struct {
 func NewSession(file string) (*Session, error) {
 	fd, err := os.Open(file)
 	if err != nil {
-		return nil, errors.Wrapf(err, "opening %s", file)
+		if !os.IsNotExist(err) {
+			return nil, errors.Wrapf(err, "opening %s", file)
+		}
+		// Create the directory.
+		if err := os.Mkdir(file, 0755); err != nil {
+			return nil, errors.Wrap(err, "making directory")
+		}
+		fd, err = os.Open(file)
+		if err != nil {
+			return nil, errors.Wrap(err, "opening directory")
+		}
 	}
 	return &Session{Path: file, Dir: fd}, nil
 }
@@ -129,15 +139,20 @@ func (s *Sessions) Read() error {
 	if len(files) == 0 {
 		return nil
 	}
+
+	m := map[string]*Session{}
+
 	for _, filename := range files {
-		sesh, err := NewSession(filename)
+		f := filepath.Join(s.Home, filename)
+		sesh, err := NewSession(f)
 		if err != nil {
 			return errors.Wrapf(err, "reading %s", filename)
 		}
-		s.Mu.Lock()
-		s.M[filename] = sesh
-		s.Mu.Unlock()
+		m[f] = sesh
 	}
+	s.Mu.Lock()
+	s.M = m
+	s.Mu.Unlock()
 
 	return nil
 }
