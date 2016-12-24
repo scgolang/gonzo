@@ -21,15 +21,17 @@ func (app *App) ListClients(msg osc.Message) error {
 
 // sendClients sends the list of clients as individual reply messages.
 func (app *App) sendClients(addr net.Addr) error {
+	clients := app.sessions.Current().Clients()
+
 	msg := osc.Message{
 		Address: nsm.AddressReply,
 		Arguments: osc.Arguments{
 			osc.String(nsm.AddressServerClients),
-			osc.Int(len(app.clients)),
+			osc.Int(len(clients)),
 		},
 	}
 
-	for pid, client := range app.clients {
+	for pid, client := range clients {
 		msg.Arguments = append(msg.Arguments, []osc.Argument{
 			osc.String(client.ApplicationName),
 			osc.String(client.Capabilities.String()),

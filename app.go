@@ -5,10 +5,8 @@ import (
 	"log"
 	"net"
 	"strconv"
-	"sync"
 
 	"github.com/pkg/errors"
-	"github.com/scgolang/exec"
 	"github.com/scgolang/nsm"
 	"github.com/scgolang/osc"
 	"golang.org/x/sync/errgroup"
@@ -25,10 +23,6 @@ type App struct {
 
 	Capabilities nsm.Capabilities
 
-	clients      ClientMap
-	clientsMutex sync.RWMutex
-
-	cmdgrp   *exec.CmdGroup
 	ctx      context.Context
 	errgrp   *errgroup.Group
 	sessions *Sessions
@@ -36,12 +30,12 @@ type App struct {
 
 // NewApp creates a new application.
 func NewApp(ctx context.Context, config Config) (*App, error) {
-	sessions, err := NewSessions(config.Home)
+	g, gctx := errgroup.WithContext(ctx)
+
+	sessions, err := NewSessions(config.Home, gctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "opening sessions")
 	}
-
-	g, gctx := errgroup.WithContext(ctx)
 
 	app := &App{
 		Config: config,
@@ -52,8 +46,6 @@ func NewApp(ctx context.Context, config Config) (*App, error) {
 
 		Capabilities: nsm.Capabilities{nsm.CapServerControl},
 
-		clients:  ClientMap{},
-		cmdgrp:   exec.NewCmdGroup(gctx),
 		ctx:      gctx,
 		errgrp:   g,
 		sessions: sessions,
