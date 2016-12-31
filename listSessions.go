@@ -34,8 +34,19 @@ func (app *App) sendSessions(addr net.Addr) error {
 			osc.Int(len(app.sessions.M)),
 		},
 	}
+	var (
+		i            = 0
+		curridx      = 0
+		sessionNames = []osc.Argument{}
+	)
 	for name := range app.sessions.M {
-		msg.Arguments = append(msg.Arguments, osc.String(name))
+		if name == app.sessions.Curr {
+			curridx = i
+		}
+		sessionNames = append(sessionNames, osc.String(name))
+		i++
 	}
+	msg.Arguments = append(msg.Arguments, osc.Int(curridx))
+	msg.Arguments = append(msg.Arguments, sessionNames...)
 	return errors.Wrapf(app.SendTo(addr, msg), "send %s reply", nsm.AddressServerSessions)
 }
