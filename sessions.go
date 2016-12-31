@@ -86,28 +86,19 @@ func (s *Sessions) Close() error {
 
 // OpenHome tries to open the sessions home directory, creating it if it doesn't exist.
 func (s *Sessions) OpenHome() error {
-	d, err := os.Open(s.Home)
-
-	// Create the home directory if it doesn't exist.
+	d, err := openOrCreateDir(s.Home)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			return errors.Wrapf(err, "open %s", s.Home)
-		}
-		if err := os.Mkdir(s.Home, 0755); err != nil {
-			return errors.Wrapf(err, "create %s", s.Home)
-		}
-		d, err = os.Open(s.Home)
-		if err != nil {
-			return errors.Wrapf(err, "open %s", s.Home)
-		}
+		return errors.Wrap(err, "opening or creating "+s.Home)
 	}
 	s.Dir = d
-
 	return nil
 }
 
 // Read reads sessions into memory.
 func (s *Sessions) Read() error {
+	if err := s.OpenHome(); err != nil {
+		return errors.Wrap(err, "opening session home directory")
+	}
 	// Read sessions and exit if there are none.
 	files, err := s.Dir.Readdirnames(-1)
 	if err != nil {
@@ -121,6 +112,7 @@ func (s *Sessions) Read() error {
 
 	for _, filename := range files {
 		f := filepath.Join(s.Home, filename)
+		println(f)
 		sesh, err := NewSession(f, s.ctx)
 		if err != nil {
 			return errors.Wrapf(err, "reading %s", filename)

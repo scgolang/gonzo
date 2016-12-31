@@ -20,4 +20,4 @@ type Client struct {
 type Pid int32
 
 // ClientMap helps track clients by process ID.
-type ClientMap map[Pid]Client
+type ClientMap map[Pid]*Client

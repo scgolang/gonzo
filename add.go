@@ -9,8 +9,16 @@ import (
 
 // Add starts a new client program.
 func (app *App) Add(msg osc.Message) error {
-	if err := app.sessions.Current().SpawnFrom(msg, app.Conn); err != nil {
+	currentSession := app.sessions.Current()
+	cmdname, err := currentSession.SpawnFrom(msg, app.Conn)
+	if err != nil {
 		return errors.Wrap(err, "adding client from osc message")
+	}
+	if err := currentSession.CreateCmdDirectory(cmdname); err != nil {
+		return errors.Wrap(err, "creating directory for new client")
+	}
+	if err := currentSession.PipeOutputFor(cmdname, app.errgrp); err != nil {
+		return errors.Wrap(err, "piping output from new client")
 	}
 
 	// Wait for announcement from the new client then respond to
