@@ -32,7 +32,7 @@ type App struct {
 func NewApp(ctx context.Context, config Config) (*App, error) {
 	g, gctx := errgroup.WithContext(ctx)
 
-	sessions, err := NewSessions(config.Home, gctx)
+	sessions, err := NewSessions(gctx, config.Home, config.Debug)
 	if err != nil {
 		return nil, errors.Wrap(err, "opening sessions")
 	}
@@ -56,9 +56,54 @@ func NewApp(ctx context.Context, config Config) (*App, error) {
 	return app, nil
 }
 
+// debug prints a debug message.
+func (app *App) debug(msg string) {
+	if app.Debug {
+		log.Println(msg)
+	}
+}
+
+// debugf prints a debug message with printf semantics.
+func (app *App) debugf(format string, args ...interface{}) {
+	if app.Debug {
+		log.Printf(format, args...)
+	}
+}
+
+// dispatcher returns the osc Dispatcher for the application.
+func (app *App) dispatcher() osc.Dispatcher {
+	return osc.Dispatcher{
+		nsm.AddressServerAdd:      app.Add,
+		nsm.AddressServerAnnounce: app.OscMethod(app.Announce, nsm.AddressServerAnnounce),
+		nsm.AddressServerClients:  app.ListClients,
+		nsm.AddressServerSessions: app.ListSessions,
+		nsm.AddressServerNew:      app.OscMethod(app.NewSession, nsm.AddressServerNew),
+		"/ping":                   app.Ping,
+		nsm.AddressServerRemove:   app.OscMethod(app.RemoveSession, nsm.AddressServerRemove),
+		nsm.AddressReply:          app.Reply,
+	}
+}
+
 // Go runs a new goroutine as part of an errgroup.Group
 func (app *App) Go(f func() error) {
 	app.errgrp.Go(f)
+}
+
+// initialize initializes the application.
+func (app *App) initialize() error {
+	// Initialize the osc listener.
+	listenAddr := net.JoinHostPort(app.Host, strconv.Itoa(app.Port))
+	addr, err := net.ResolveUDPAddr("udp", listenAddr)
+	if err != nil {
+		return errors.Wrap(err, "could not resolve udp address")
+	}
+	conn, err := osc.ListenUDP("udp", addr)
+	if err != nil {
+		return errors.Wrap(err, "could not listen on udp")
+	}
+	app.Conn = conn
+	app.Go(app.ServeOSC)
+	return nil
 }
 
 // OscMethod returns an osc.Method which is based on an NsmMethod.
@@ -94,51 +139,6 @@ func (app *App) ServeOSC() error {
 // Wait waits for all the goroutines to return nil, or for one of them to return a non-nil value, whichever happens first.
 func (app *App) Wait() error {
 	return app.errgrp.Wait()
-}
-
-// debug prints a debug message.
-func (app *App) debug(msg string) {
-	if app.Debug {
-		log.Println(msg)
-	}
-}
-
-// debugf prints a debug message with printf semantics.
-func (app *App) debugf(format string, args ...interface{}) {
-	if app.Debug {
-		log.Printf(format, args...)
-	}
-}
-
-// dispatcher returns the osc Dispatcher for the application.
-func (app *App) dispatcher() osc.Dispatcher {
-	return osc.Dispatcher{
-		nsm.AddressServerAdd:      app.Add,
-		nsm.AddressServerAnnounce: app.OscMethod(app.Announce, nsm.AddressServerAnnounce),
-		nsm.AddressServerClients:  app.ListClients,
-		nsm.AddressServerSessions: app.ListSessions,
-		nsm.AddressServerNew:      app.OscMethod(app.NewSession, nsm.AddressServerNew),
-		"/ping":                   app.Ping,
-		nsm.AddressServerRemove:   app.OscMethod(app.RemoveSession, nsm.AddressServerRemove),
-		nsm.AddressReply:          app.Reply,
-	}
-}
-
-// initialize initializes the application.
-func (app *App) initialize() error {
-	// Initialize the osc listener.
-	listenAddr := net.JoinHostPort(app.Host, strconv.Itoa(app.Port))
-	addr, err := net.ResolveUDPAddr("udp", listenAddr)
-	if err != nil {
-		return errors.Wrap(err, "could not resolve udp address")
-	}
-	conn, err := osc.ListenUDP("udp", addr)
-	if err != nil {
-		return errors.Wrap(err, "could not listen on udp")
-	}
-	app.Conn = conn
-	app.Go(app.ServeOSC)
-	return nil
 }
 
 // NsmMethod is a utility type that is used by osc methods that should

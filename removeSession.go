@@ -20,10 +20,10 @@ func (app *App) RemoveSession(msg osc.Message) (string, nsm.Error) {
 	if err != nil {
 		return "", nsm.NewError(code, "reading string from message")
 	}
-	app.debugf("creating a new session named %s", name)
+	app.debugf("removing session named %s", name)
 
 	if err := app.sessions.Remove(name); err != nil {
-		return "", nsm.NewError(code, "removing session")
+		return "", nsm.NewError(code, err.Error())
 	}
 	return "removed session " + name, nil
 }

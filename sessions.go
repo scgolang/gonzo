@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,20 +16,22 @@ import (
 
 // Sessions maintains a collection of sessions.
 type Sessions struct {
-	Home string // Home is the path to the directory that contains all the sessions.
-	Dir  *os.File
-	Curr string
-	Mu   sync.RWMutex
-	M    map[string]*Session
+	Home  string // Home is the path to the directory that contains all the sessions.
+	Debug bool
+	Dir   *os.File
+	Curr  string
+	Mu    sync.RWMutex
+	M     map[string]*Session
 
 	ctx context.Context
 }
 
 // NewSessions creates a new sessions collection.
-func NewSessions(home string, ctx context.Context) (*Sessions, error) {
+func NewSessions(ctx context.Context, home string, debug bool) (*Sessions, error) {
 	s := &Sessions{
-		Home: home,
-		M:    map[string]*Session{},
+		Debug: debug,
+		Home:  home,
+		M:     map[string]*Session{},
 
 		ctx: ctx,
 	}
@@ -114,6 +117,20 @@ func (s *Sessions) Close() error {
 	return nil
 }
 
+// debug prints a debug message.
+func (s *Sessions) debug(msg string) {
+	if s.Debug {
+		log.Println(msg)
+	}
+}
+
+// debugf prints a debug message with printf semantics.
+func (s *Sessions) debugf(format string, args ...interface{}) {
+	if s.Debug {
+		log.Printf(format, args...)
+	}
+}
+
 // OpenHome tries to open the sessions home directory, creating it if it doesn't exist.
 func (s *Sessions) OpenHome() error {
 	d, err := openOrCreateDir(s.Home)
@@ -158,29 +175,30 @@ func (s *Sessions) Read() error {
 // Remove completely removes a session from disk.
 func (s *Sessions) Remove(name string) error {
 	var (
-		exists bool
-		sesh   *Session
+		exists      bool
+		sesh        *Session
+		sessionPath = filepath.Join(s.Home, name)
 	)
 	s.Mu.RLock()
-	sesh, exists = s.M[name]
+	sesh, exists = s.M[sessionPath]
 	s.Mu.RUnlock()
 
 	if !exists {
-		return errors.New("session " + name + " does not exist")
+		s.debugf("sessions %#v\n", s.M)
+		return errors.New("session " + sessionPath + " does not exist")
 	}
 	if sesh.Dirty() {
-		return errors.New("session " + name + " has unsaved changes")
+		return errors.New("session " + sessionPath + " has unsaved changes")
 	}
-	sessionPath := filepath.Join(s.Home, name)
 	if err := os.RemoveAll(sessionPath); err != nil {
 		return errors.Wrap(err, "removing "+sessionPath)
 	}
 	s.Mu.Lock()
-	delete(s.M, name)
+	delete(s.M, sessionPath)
 	s.Mu.Unlock()
 
 	// If the removed session was the current session we need a new current session.
-	if name == s.Curr {
+	if sessionPath == s.Curr {
 		s.SelectCurrentRandomly()
 	}
 	return nil
