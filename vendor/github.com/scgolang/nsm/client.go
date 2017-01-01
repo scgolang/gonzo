@@ -33,11 +33,13 @@ const (
 	AddressServerClients         = "/nsm/server/clients"
 	AddressServerClose           = "/nsm/server/close"
 	AddressServerDuplicate       = "/nsm/server/duplicate"
-	AddressServerSessions        = "/nsm/server/list"
+	AddressServerKill            = "/nsm/server/kill"
 	AddressServerNew             = "/nsm/server/new"
 	AddressServerOpen            = "/nsm/server/open"
 	AddressServerQuit            = "/nsm/server/quit"
+	AddressServerRemove          = "/nsm/server/rm"
 	AddressServerSave            = "/nsm/server/save"
+	AddressServerSessions        = "/nsm/server/list"
 )
 
 // NsmURL is the name of the NSM url environment variable.
