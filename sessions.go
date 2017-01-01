@@ -9,6 +9,8 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/scgolang/nsm"
+	"github.com/scgolang/osc"
 )
 
 // Sessions maintains a collection of sessions.
@@ -52,6 +54,34 @@ func (s *Sessions) Current() *Session {
 	curr := s.M[s.Curr]
 	s.Mu.RUnlock()
 	return curr
+}
+
+// ListMessage creates an osc message that represents the sessions list.
+func (s *Sessions) ListMessage() osc.Message {
+	s.Mu.RLock()
+	msg := osc.Message{
+		Address: nsm.AddressReply,
+		Arguments: osc.Arguments{
+			osc.String(nsm.AddressServerSessions),
+			osc.Int(len(s.M)),
+		},
+	}
+	var (
+		i            = 0
+		curridx      = 0
+		sessionNames = []osc.Argument{}
+	)
+	for name := range s.M {
+		if name == s.Curr {
+			curridx = i
+		}
+		sessionNames = append(sessionNames, osc.String(name))
+		i++
+	}
+	s.Mu.RUnlock()
+	msg.Arguments = append(msg.Arguments, osc.Int(curridx))
+	msg.Arguments = append(msg.Arguments, sessionNames...)
+	return msg
 }
 
 // New creates a new session and makes it the current session.
@@ -112,7 +142,6 @@ func (s *Sessions) Read() error {
 
 	for _, filename := range files {
 		f := filepath.Join(s.Home, filename)
-		println(f)
 		sesh, err := NewSession(f, s.ctx)
 		if err != nil {
 			return errors.Wrapf(err, "reading %s", filename)
@@ -123,6 +152,37 @@ func (s *Sessions) Read() error {
 	s.M = m
 	s.Mu.Unlock()
 
+	return nil
+}
+
+// Remove completely removes a session from disk.
+func (s *Sessions) Remove(name string) error {
+	var (
+		exists bool
+		sesh   *Session
+	)
+	s.Mu.RLock()
+	sesh, exists = s.M[name]
+	s.Mu.RUnlock()
+
+	if !exists {
+		return errors.New("session " + name + " does not exist")
+	}
+	if sesh.Dirty() {
+		return errors.New("session " + name + " has unsaved changes")
+	}
+	sessionPath := filepath.Join(s.Home, name)
+	if err := os.RemoveAll(sessionPath); err != nil {
+		return errors.Wrap(err, "removing "+sessionPath)
+	}
+	s.Mu.Lock()
+	delete(s.M, name)
+	s.Mu.Unlock()
+
+	// If the removed session was the current session we need a new current session.
+	if name == s.Curr {
+		s.SelectCurrentRandomly()
+	}
 	return nil
 }
 
@@ -157,6 +217,9 @@ func (s *Sessions) SelectCurrent() error {
 // SelectCurrentRandomly selects a session at random as the current session.
 func (s *Sessions) SelectCurrentRandomly() error {
 	s.Mu.RLock()
+	if len(s.M) == 0 {
+		s.Curr = ""
+	}
 	for name := range s.M {
 		s.Curr = name
 		break

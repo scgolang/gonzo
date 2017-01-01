@@ -41,16 +41,16 @@ func NewSession(file string, ctx context.Context) (*Session, error) {
 }
 
 // Announce handles a client announcement.
-func (s *Session) Announce(msg osc.Message) error {
+func (s *Session) Announce(msg osc.Message) (*Client, error) {
 	client, pid, err := s.clientFromAnnounce(msg)
 	if err != nil {
-		return errors.Wrap(err, "creating client from announce message")
+		return nil, errors.Wrap(err, "creating client from announce message")
 	}
 
 	s.clientsMutex.RLock()
 	if _, ok := s.clients[pid]; ok {
 		s.clientsMutex.RUnlock()
-		return errors.Errorf("client with pid %d already exists", pid)
+		return nil, errors.Errorf("client with pid %d already exists", pid)
 	}
 	s.clientsMutex.RUnlock()
 
@@ -58,7 +58,7 @@ func (s *Session) Announce(msg osc.Message) error {
 	s.clients[pid] = client
 	s.clientsMutex.Unlock()
 
-	return nil
+	return client, nil
 }
 
 // Clients returns the session's ClientMap.
@@ -81,6 +81,12 @@ func (s *Session) CreateCmdDirectory(cmdname string) error {
 		return errors.Wrapf(err, "opening or creating %s", cmdpath)
 	}
 	return nil
+}
+
+// Dirty returns true if there are clients in the session with unsaved changes, false otherwise.
+func (s *Session) Dirty() bool {
+	// TODO
+	return false
 }
 
 // Open opens the session.

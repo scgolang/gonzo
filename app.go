@@ -66,10 +66,11 @@ func (app *App) OscMethod(method NsmMethod, addr string) osc.Method {
 	return func(msg osc.Message) error {
 		var reply osc.Message
 
-		if err := method(msg); err != nil {
+		message, err := method(msg)
+		if err != nil {
 			reply = ReplyError(addr, err.Code(), err.Error())
 		} else {
-			reply = ReplySuccess(msg.Sender, addr)
+			reply = ReplySuccess(msg.Sender, addr, message)
 		}
 		return errors.Wrap(app.SendTo(msg.Sender, reply), "sending reply")
 	}
@@ -90,8 +91,7 @@ func (app *App) ServeOSC() error {
 	return app.Serve(app.dispatcher())
 }
 
-// Wait waits for all the goroutines to return nil, or for one of them
-// to return a non-nil value, whichever happens first.
+// Wait waits for all the goroutines to return nil, or for one of them to return a non-nil value, whichever happens first.
 func (app *App) Wait() error {
 	return app.errgrp.Wait()
 }
@@ -114,11 +114,12 @@ func (app *App) debugf(format string, args ...interface{}) {
 func (app *App) dispatcher() osc.Dispatcher {
 	return osc.Dispatcher{
 		nsm.AddressServerAdd:      app.Add,
-		nsm.AddressServerClients:  app.ListClients,
 		nsm.AddressServerAnnounce: app.OscMethod(app.Announce, nsm.AddressServerAnnounce),
+		nsm.AddressServerClients:  app.ListClients,
 		nsm.AddressServerSessions: app.ListSessions,
 		nsm.AddressServerNew:      app.OscMethod(app.NewSession, nsm.AddressServerNew),
 		"/ping":                   app.Ping,
+		nsm.AddressServerRemove:   app.OscMethod(app.RemoveSession, nsm.AddressServerRemove),
 		nsm.AddressReply:          app.Reply,
 	}
 }
@@ -142,7 +143,7 @@ func (app *App) initialize() error {
 
 // NsmMethod is a utility type that is used by osc methods that should
 // always generate an nsm-style reply to the client.
-type NsmMethod func(msg osc.Message) nsm.Error
+type NsmMethod func(msg osc.Message) (string, nsm.Error)
 
 // ReplyError returns the message used to signal an error to a client.
 func ReplyError(address string, code nsm.Code, message string) osc.Message {
@@ -157,11 +158,12 @@ func ReplyError(address string, code nsm.Code, message string) osc.Message {
 }
 
 // ReplySuccess returns the message used to signal a successful operation.
-func ReplySuccess(remote net.Addr, address string) osc.Message {
+func ReplySuccess(remote net.Addr, address, message string) osc.Message {
 	return osc.Message{
 		Address: nsm.AddressReply,
 		Arguments: osc.Arguments{
 			osc.String(address),
+			osc.String(message),
 		},
 	}
 }

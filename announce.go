@@ -8,15 +8,16 @@ import (
 )
 
 // Announce handles the announcement of new clients.
-func (app *App) Announce(msg osc.Message) nsm.Error {
+func (app *App) Announce(msg osc.Message) (string, nsm.Error) {
 	app.debug("got announcement")
 
 	// Add to client map.
-	if err := app.sessions.Current().Announce(msg); err != nil {
-		return nsm.NewError(nsm.ErrLaunchFailed, err.Error())
+	client, err := app.sessions.Current().Announce(msg)
+	if err != nil {
+		return "", nsm.NewError(nsm.ErrLaunchFailed, err.Error())
 	}
 
-	// default is successful response
+	// Default is successful response.
 	response := osc.Message{
 		Address: nsm.AddressReply,
 		Arguments: osc.Arguments{
@@ -28,7 +29,7 @@ func (app *App) Announce(msg osc.Message) nsm.Error {
 
 	// Send the response to the newly-announced client.
 	if err := app.SendTo(msg.Sender, response); err != nil {
-		return nsm.NewError(nsm.ErrGeneral, err.Error())
+		return "", nsm.NewError(nsm.ErrGeneral, err.Error())
 	}
 
 	// Send the announcement response on a channel.
@@ -36,8 +37,8 @@ func (app *App) Announce(msg osc.Message) nsm.Error {
 	// will find out about how the announcement handshake went
 	select {
 	case <-time.After(5 * time.Second):
-		return nsm.NewError(nsm.ErrGeneral, "timeout sending announcement response on a channel")
+		return "", nsm.NewError(nsm.ErrGeneral, "timeout sending announcement response on a channel")
 	case app.Announcements <- response:
 	}
-	return nil
+	return "successful announcement from " + client.ApplicationName, nil
 }
