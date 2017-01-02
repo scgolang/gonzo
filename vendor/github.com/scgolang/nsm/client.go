@@ -20,6 +20,7 @@ const (
 	AddressClientGUIShowing      = "/nsm/client/gui_is_showing"
 	AddressClientIsClean         = "/nsm/client/is_clean"
 	AddressClientIsDirty         = "/nsm/client/is_dirty"
+	AddressClientLogs            = "/nsm/client/logs"
 	AddressClientOpen            = "/nsm/client/open"
 	AddressClientProgress        = "/nsm/client/progress"
 	AddressClientSave            = "/nsm/client/save"
