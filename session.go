@@ -123,14 +123,8 @@ func (s *Session) PipeOutputFor(cmdname string, g Goer) error {
 	if err != nil {
 		return errors.Wrap(err, "getting output for "+cmdname)
 	}
-	g.Go(func() error {
-		_, err := io.Copy(stdoutFile, stdout)
-		return err
-	})
-	g.Go(func() error {
-		_, err := io.Copy(stderrFile, stderr)
-		return err
-	})
+	g.Go(pipeSync(stdoutFile, stdout))
+	g.Go(pipeSync(stderrFile, stderr))
 	return nil
 }
 
@@ -242,4 +236,26 @@ func openOrCreateDir(dirpath string) (*os.File, error) {
 		}
 	}
 	return fd, nil
+}
+
+// pipeSync pipes an io.ReadCloser to a file and calls
+// Sync on the *os.File after every write.
+func pipeSync(fd *os.File, r io.ReadCloser) func() error {
+	return func() error {
+		for {
+			buf := make([]byte, 256)
+			if _, err := r.Read(buf); err != nil {
+				if err == io.EOF {
+					break
+				}
+			}
+			if _, err := fd.Write(buf); err != nil {
+				return errors.Wrap(err, "writing to stdout file")
+			}
+			if err := fd.Sync(); err != nil {
+				return errors.Wrap(err, "syncing file")
+			}
+		}
+		return nil
+	}
 }
