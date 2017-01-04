@@ -7,6 +7,9 @@ import (
 )
 
 // Client represents an nsm client.
+// Note that this is the information that is provided to us
+// by clients when they announce.
+// There is also other information about clients that we store directly on the session.
 type Client struct {
 	Addr            net.Addr         `json:"addr"`
 	ApplicationName string           `json:"application_name"`

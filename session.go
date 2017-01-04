@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"io"
 	"net"
@@ -16,23 +17,32 @@ import (
 
 const currentSessionCache = ".current"
 
+type sessionClient struct {
+	stderr io.Reader
+	stdout io.Reader
+}
+
 // Session represents a session.
 type Session struct {
+	Dir  *os.File
+	Path string
+
 	clients      ClientMap
 	clientsMutex sync.RWMutex
 
 	cmdgrp *exec.Group
 
-	Dir  *os.File
-	Path string
+	sessionClients      map[string]*sessionClient
+	sessionClientsMutex sync.RWMutex
 }
 
 // NewSession creates a new session.
 func NewSession(file string, ctx context.Context) (*Session, error) {
 	s := &Session{
-		clients: ClientMap{},
-		cmdgrp:  exec.NewGroup(ctx),
-		Path:    file,
+		Path:           file,
+		clients:        ClientMap{},
+		cmdgrp:         exec.NewGroup(ctx),
+		sessionClients: map[string]*sessionClient{},
 	}
 	if err := s.initializeDirectory(); err != nil {
 		return nil, errors.Wrap(err, "initializing session")
@@ -89,6 +99,34 @@ func (s *Session) Dirty() bool {
 	return false
 }
 
+// Logs returns a channel that emits lines from the log file of a given client.
+// An error will be returned if the client with the provided name does not exist
+// or if logtype is not stderr or stdout.
+func (s *Session) Logs(clientName string, fd int32, g Goer) (<-chan string, error) {
+	clientPath := filepath.Join(s.Path, clientName)
+	var (
+		client *sessionClient
+		exists bool
+	)
+	s.clientsMutex.RLock()
+	client, exists = s.sessionClients[clientPath]
+	s.clientsMutex.RUnlock()
+	if !exists {
+		return nil, errors.New("client does not exist: " + clientName)
+	}
+	if fd != stdoutArg && fd != stderrArg {
+		return nil, errors.Errorf("fd must be either %d or %d", stdoutArg, stderrArg)
+	}
+
+	c := make(chan string)
+	if fd == stdoutArg {
+		g.Go(linesToChan(client.stdout, c))
+	} else {
+		g.Go(linesToChan(client.stderr, c))
+	}
+	return c, nil
+}
+
 // Open opens the session.
 func (s *Session) Open() error {
 	return nil
@@ -106,13 +144,16 @@ const (
 
 // PipeOutputFor pipes the output for the specified process to files in the session's directory.
 func (s *Session) PipeOutputFor(cmdname string, g Goer) error {
+	var (
+		clientPath = filepath.Join(s.Path, cmdname)
+		stdoutPath = filepath.Join(clientPath, stdoutFilename)
+		stderrPath = filepath.Join(clientPath, stderrFilename)
+	)
 	// Create the files where we will store the output.
-	stdoutPath := filepath.Join(s.Path, cmdname, stdoutFilename)
 	stdoutFile, err := os.Create(stdoutPath)
 	if err != nil {
 		return errors.Wrap(err, "creating "+stdoutPath)
 	}
-	stderrPath := filepath.Join(s.Path, cmdname, stderrFilename)
 	stderrFile, err := os.Create(stderrPath)
 	if err != nil {
 		return errors.Wrap(err, "creating "+stderrPath)
@@ -125,6 +166,16 @@ func (s *Session) PipeOutputFor(cmdname string, g Goer) error {
 	}
 	g.Go(pipeSync(stdoutFile, stdout))
 	g.Go(pipeSync(stderrFile, stderr))
+
+	// Add the pipes to the session clients.
+	s.sessionClientsMutex.Lock()
+	if _, ok := s.sessionClients[clientPath]; !ok {
+		s.sessionClients[clientPath] = &sessionClient{}
+	}
+	s.sessionClients[clientPath].stderr = stderrFile
+	s.sessionClients[clientPath].stdout = stdoutFile
+	s.sessionClientsMutex.Unlock()
+
 	return nil
 }
 
@@ -140,6 +191,8 @@ func (s *Session) SpawnFrom(msg osc.Message, local net.Conn) (string, error) {
 	if len(msg.Arguments) != 2 {
 		return "", errors.New("add expects 2 arguments")
 	}
+
+	// Get the arguments.
 	cmdname, err := msg.Arguments[0].ReadString()
 	if err != nil {
 		return "", errors.Wrap(err, "could not read cmdname")
@@ -148,6 +201,8 @@ func (s *Session) SpawnFrom(msg osc.Message, local net.Conn) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "could not read progname")
 	}
+
+	// Exec the new client.
 	var (
 		cmd       = exec.Command(progname)
 		localAddr = local.LocalAddr().String()
@@ -157,6 +212,12 @@ func (s *Session) SpawnFrom(msg osc.Message, local net.Conn) (string, error) {
 	if err := s.cmdgrp.AddCmd(cmdname, cmd); err != nil {
 		return "", errors.Wrap(err, "adding command "+progname)
 	}
+
+	// Create a new entry in the session clients map.
+	s.sessionClientsMutex.Lock()
+	s.sessionClients[filepath.Join(s.Path, cmdname)] = &sessionClient{}
+	s.sessionClientsMutex.Unlock()
+
 	return cmdname, nil
 }
 
@@ -257,5 +318,16 @@ func pipeSync(fd *os.File, r io.ReadCloser) func() error {
 			}
 		}
 		return nil
+	}
+}
+
+// linesToChan sends lines from the provided io.Reader on a channel as strings.
+func linesToChan(r io.Reader, c chan string) func() error {
+	return func() error {
+		br := bufio.NewScanner(r)
+		for br.Scan() {
+			c <- br.Text()
+		}
+		return errors.Wrap(br.Err(), "scanning lines to channel")
 	}
 }
