@@ -18,7 +18,7 @@ func (app *App) NewSession(msg osc.Message) (string, nsm.Error) {
 	if err != nil {
 		return "", nsm.NewError(code, "reading string from message")
 	}
-	app.debugf("creating a new session named %s", name)
+	app.Debugf("creating a new session named %s", name)
 
 	if err := app.sessions.New(name); err != nil {
 		return "", nsm.NewError(code, "creating new session")

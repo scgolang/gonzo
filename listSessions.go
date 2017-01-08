@@ -10,7 +10,7 @@ import (
 
 // ListSessions replies with a list of sessions.
 func (app *App) ListSessions(msg osc.Message) error {
-	app.debug("listing sessions")
+	app.Debug("listing sessions")
 
 	// Read the sessions from disk and send each one as a reply message.
 	if err := app.sendSessions(msg.Sender); err != nil {
@@ -25,7 +25,7 @@ func (app *App) sendSessions(addr net.Addr) error {
 		return errors.Wrap(err, "read sessions")
 	}
 
-	app.debugf("read %d session(s)", len(app.sessions.M))
+	app.Debugf("read %d session(s)", len(app.sessions.M))
 
 	msg := app.sessions.ListMessage()
 

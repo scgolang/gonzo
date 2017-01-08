@@ -9,7 +9,7 @@ import (
 
 // Announce handles the announcement of new clients.
 func (app *App) Announce(msg osc.Message) (string, nsm.Error) {
-	app.debug("got announcement")
+	app.Debug("got announcement")
 
 	// Add to client map.
 	client, err := app.sessions.Current().Announce(msg)

@@ -10,7 +10,7 @@ import (
 
 // ListClients replies with a list of clients.
 func (app *App) ListClients(msg osc.Message) error {
-	app.debug("listing clients")
+	app.Debug("listing clients")
 
 	// Read the clients from disk and send each one as a reply message.
 	if err := app.sendClients(msg.Sender); err != nil {
@@ -40,7 +40,7 @@ func (app *App) sendClients(addr net.Addr) error {
 			osc.Int(client.Minor),
 			osc.Int(pid),
 		}...)
-		app.debugf("added client to message pid=%d name=%s", pid, client.ApplicationName)
+		app.Debugf("added client to message pid=%d name=%s", pid, client.ApplicationName)
 	}
 	return errors.Wrapf(app.SendTo(addr, msg), "send %s reply", nsm.AddressServerClients)
 }

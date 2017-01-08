@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,24 +15,24 @@ import (
 
 // Sessions maintains a collection of sessions.
 type Sessions struct {
-	Home  string // Home is the path to the directory that contains all the sessions.
-	Debug bool
-	Dir   *os.File
-	Curr  string
-	Mu    sync.RWMutex
-	M     map[string]*Session
+	Home string // Home is the path to the directory that contains all the sessions.
+	Dir  *os.File
+	Curr string
+	Mu   sync.RWMutex
+	M    map[string]*Session
 
 	ctx context.Context
+	dbg Debugger
 }
 
 // NewSessions creates a new sessions collection.
-func NewSessions(ctx context.Context, home string, debug bool) (*Sessions, error) {
+func NewSessions(ctx context.Context, dbg Debugger, home string) (*Sessions, error) {
 	s := &Sessions{
-		Debug: debug,
-		Home:  home,
-		M:     map[string]*Session{},
+		Home: home,
+		M:    map[string]*Session{},
 
 		ctx: ctx,
+		dbg: dbg,
 	}
 	// Open the home dir.
 	if err := s.OpenHome(); err != nil {
@@ -100,7 +99,7 @@ func (s *Sessions) New(name string) error {
 	s.Mu.RUnlock()
 
 	// Create the new session and add it to the map.
-	sesh, err := NewSession(f, s.ctx)
+	sesh, err := NewSession(s.ctx, s.dbg, f)
 	if err != nil {
 		return errors.Wrapf(err, "could not open session %s", f)
 	}
@@ -115,20 +114,6 @@ func (s *Sessions) New(name string) error {
 func (s *Sessions) Close() error {
 	// Write the current session.
 	return nil
-}
-
-// debug prints a debug message.
-func (s *Sessions) debug(msg string) {
-	if s.Debug {
-		log.Println(msg)
-	}
-}
-
-// debugf prints a debug message with printf semantics.
-func (s *Sessions) debugf(format string, args ...interface{}) {
-	if s.Debug {
-		log.Printf(format, args...)
-	}
 }
 
 // OpenHome tries to open the sessions home directory, creating it if it doesn't exist.
@@ -159,7 +144,7 @@ func (s *Sessions) Read() error {
 
 	for _, filename := range files {
 		f := filepath.Join(s.Home, filename)
-		sesh, err := NewSession(f, s.ctx)
+		sesh, err := NewSession(s.ctx, s.dbg, f)
 		if err != nil {
 			return errors.Wrapf(err, "reading %s", filename)
 		}
@@ -184,7 +169,7 @@ func (s *Sessions) Remove(name string) error {
 	s.Mu.RUnlock()
 
 	if !exists {
-		s.debugf("sessions %#v\n", s.M)
+		s.dbg.Debugf("sessions %#v\n", s.M)
 		return errors.New("session " + sessionPath + " does not exist")
 	}
 	if sesh.Dirty() {

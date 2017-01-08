@@ -13,10 +13,10 @@ const (
 
 // Config provides configuration for the application.
 type Config struct {
-	Home  string `json:"home"`
-	Host  string `json:"host"`
-	Port  int    `json:"port"`
-	Debug bool   `json:"debug"`
+	Home      string `json:"home"`
+	Host      string `json:"host"`
+	Port      int    `json:"port"`
+	DebugFlag bool   `json:"debug"`
 }
 
 // NewConfig creates a new config from command line flags.
@@ -28,7 +28,7 @@ func NewConfig() (Config, error) {
 	flag.StringVar(&c.Home, "home", defaultHome, "Session manager's home directory")
 	flag.StringVar(&c.Host, "h", "127.0.0.1", "host")
 	flag.IntVar(&c.Port, "p", DefaultPort, "port")
-	flag.BoolVar(&c.Debug, "debug", false, "Print debugging output")
+	flag.BoolVar(&c.DebugFlag, "debug", false, "Print debugging output")
 	flag.Parse()
 	return c, nil
 }

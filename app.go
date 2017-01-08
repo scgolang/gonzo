@@ -32,11 +32,6 @@ type App struct {
 func NewApp(ctx context.Context, config Config) (*App, error) {
 	g, gctx := errgroup.WithContext(ctx)
 
-	sessions, err := NewSessions(gctx, config.Home, config.Debug)
-	if err != nil {
-		return nil, errors.Wrap(err, "opening sessions")
-	}
-
 	app := &App{
 		Config: config,
 
@@ -46,26 +41,31 @@ func NewApp(ctx context.Context, config Config) (*App, error) {
 
 		Capabilities: nsm.Capabilities{nsm.CapServerControl},
 
-		ctx:      gctx,
-		errgrp:   g,
-		sessions: sessions,
+		ctx:    gctx,
+		errgrp: g,
 	}
+	sessions, err := NewSessions(gctx, app, config.Home)
+	if err != nil {
+		return nil, errors.Wrap(err, "opening sessions")
+	}
+	app.sessions = sessions
+
 	if err := app.initialize(); err != nil {
 		return nil, errors.Wrap(err, "could not initialize application")
 	}
 	return app, nil
 }
 
-// debug prints a debug message.
-func (app *App) debug(msg string) {
-	if app.Debug {
+// Debug prints a debug message.
+func (app *App) Debug(msg string) {
+	if app.DebugFlag {
 		log.Println(msg)
 	}
 }
 
-// debugf prints a debug message with printf semantics.
-func (app *App) debugf(format string, args ...interface{}) {
-	if app.Debug {
+// Debugf prints a debug message with printf semantics.
+func (app *App) Debugf(format string, args ...interface{}) {
+	if app.DebugFlag {
 		log.Printf(format, args...)
 	}
 }
@@ -75,7 +75,7 @@ func (app *App) dispatcher() osc.Dispatcher {
 	return osc.Dispatcher{
 		nsm.AddressServerAdd:      app.Add,
 		nsm.AddressServerAnnounce: app.OscMethod(app.Announce, nsm.AddressServerAnnounce),
-		nsm.AddressClientLogs:     app.ClientLogs,
+		nsm.AddressClientLogs:     app.OscMethod(app.ClientLogs, nsm.AddressClientLogs),
 		nsm.AddressServerClients:  app.ListClients,
 		nsm.AddressServerSessions: app.ListSessions,
 		nsm.AddressServerNew:      app.OscMethod(app.NewSession, nsm.AddressServerNew),
@@ -167,4 +167,10 @@ func ReplySuccess(remote net.Addr, address, message string) osc.Message {
 			osc.String(message),
 		},
 	}
+}
+
+// Debugger is anything that helps us debug the app.
+type Debugger interface {
+	Debug(msg string)
+	Debugf(format string, args ...interface{})
 }

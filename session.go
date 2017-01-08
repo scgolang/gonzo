@@ -32,12 +32,14 @@ type Session struct {
 
 	cmdgrp *exec.Group
 
+	dbg Debugger
+
 	sessionClients      map[string]*sessionClient
 	sessionClientsMutex sync.RWMutex
 }
 
 // NewSession creates a new session.
-func NewSession(file string, ctx context.Context) (*Session, error) {
+func NewSession(ctx context.Context, dbg Debugger, file string) (*Session, error) {
 	s := &Session{
 		Path:           file,
 		clients:        ClientMap{},
@@ -102,7 +104,7 @@ func (s *Session) Dirty() bool {
 // Logs returns a channel that emits lines from the log file of a given client.
 // An error will be returned if the client with the provided name does not exist
 // or if logtype is not stderr or stdout.
-func (s *Session) Logs(clientName string, fd int32, g Goer) (<-chan string, error) {
+func (s *Session) Logs(clientName string, fd int32) (osc.Message, error) {
 	clientPath := filepath.Join(s.Path, clientName)
 	var (
 		client *sessionClient
@@ -112,19 +114,19 @@ func (s *Session) Logs(clientName string, fd int32, g Goer) (<-chan string, erro
 	client, exists = s.sessionClients[clientPath]
 	s.clientsMutex.RUnlock()
 	if !exists {
-		return nil, errors.New("client does not exist: " + clientName)
+		return osc.Message{}, errors.New("client does not exist: " + clientName)
 	}
 	if fd != stdoutArg && fd != stderrArg {
-		return nil, errors.Errorf("fd must be either %d or %d", stdoutArg, stderrArg)
+		return osc.Message{}, errors.Errorf("fd must be either %d or %d", stdoutArg, stderrArg)
 	}
 
-	c := make(chan string)
+	var r io.Reader
 	if fd == stdoutArg {
-		g.Go(linesToChan(client.stdout, c))
+		r = client.stdout
 	} else {
-		g.Go(linesToChan(client.stderr, c))
+		r = client.stderr
 	}
-	return c, nil
+	return s.linesToMessage(r, clientName)
 }
 
 // Open opens the session.
@@ -321,13 +323,28 @@ func pipeSync(fd *os.File, r io.ReadCloser) func() error {
 	}
 }
 
-// linesToChan sends lines from the provided io.Reader on a channel as strings.
-func linesToChan(r io.Reader, c chan string) func() error {
-	return func() error {
-		br := bufio.NewScanner(r)
-		for br.Scan() {
-			c <- br.Text()
+// linesToMessage converts lines from the provided io.Reader to an OSC message.
+func (s *Session) linesToMessage(r io.Reader, clientName string) (osc.Message, error) {
+	var (
+		br    = bufio.NewScanner(r)
+		lines = []string{}
+		m     = osc.Message{
+			Address: nsm.AddressClientLogs,
+			Arguments: osc.Arguments{
+				osc.String(clientName),
+			},
 		}
-		return errors.Wrap(br.Err(), "scanning lines to channel")
+	)
+	for br.Scan() {
+		lines = append(lines, br.Text())
 	}
+	if err := br.Err(); err != nil {
+		return osc.Message{}, errors.Wrap(br.Err(), "scanning lines to channel")
+	}
+	m.Arguments = append(m.Arguments, osc.Int(len(lines)))
+
+	for _, line := range lines {
+		m.Arguments = append(m.Arguments, osc.String(line))
+	}
+	return m, nil
 }
