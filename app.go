@@ -75,7 +75,7 @@ func (app *App) dispatcher() osc.Dispatcher {
 	return osc.Dispatcher{
 		nsm.AddressServerAdd:      app.Add,
 		nsm.AddressServerAnnounce: app.OscMethod(app.Announce, nsm.AddressServerAnnounce),
-		nsm.AddressClientLogs:     app.OscMethod(app.ClientLogs, nsm.AddressClientLogs),
+		nsm.AddressClientLogs:     app.ClientLogs,
 		nsm.AddressServerClients:  app.ListClients,
 		nsm.AddressServerSessions: app.ListSessions,
 		nsm.AddressServerNew:      app.OscMethod(app.NewSession, nsm.AddressServerNew),

@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -18,8 +19,8 @@ import (
 const currentSessionCache = ".current"
 
 type sessionClient struct {
-	stderr io.Reader
-	stdout io.Reader
+	stderrPath string
+	stdoutPath string
 }
 
 // Session represents a session.
@@ -44,6 +45,7 @@ func NewSession(ctx context.Context, dbg Debugger, file string) (*Session, error
 		Path:           file,
 		clients:        ClientMap{},
 		cmdgrp:         exec.NewGroup(ctx),
+		dbg:            dbg,
 		sessionClients: map[string]*sessionClient{},
 	}
 	if err := s.initializeDirectory(); err != nil {
@@ -120,13 +122,22 @@ func (s *Session) Logs(clientName string, fd int32) (osc.Message, error) {
 		return osc.Message{}, errors.Errorf("fd must be either %d or %d", stdoutArg, stderrArg)
 	}
 
-	var r io.Reader
+	var streamPath string
 	if fd == stdoutArg {
-		r = client.stdout
+		s.dbg.Debugf("returning logs from stdout stream")
+		streamPath = client.stdoutPath
 	} else {
-		r = client.stderr
+		s.dbg.Debugf("returning logs from stderr stream")
+		streamPath = client.stderrPath
 	}
-	return s.linesToMessage(r, clientName)
+	f, err := os.Open(streamPath)
+	if err != nil {
+		return osc.Message{}, errors.Wrapf(err, "opening %s", streamPath)
+	}
+
+	s.dbg.Debugf("getting logs from file %s", streamPath)
+
+	return s.linesToMessage(f, clientName)
 }
 
 // Open opens the session.
@@ -151,6 +162,9 @@ func (s *Session) PipeOutputFor(cmdname string, g Goer) error {
 		stdoutPath = filepath.Join(clientPath, stdoutFilename)
 		stderrPath = filepath.Join(clientPath, stderrFilename)
 	)
+	s.dbg.Debugf("client stdout path %s", stdoutPath)
+	s.dbg.Debugf("client stderr path %s", stderrPath)
+
 	// Create the files where we will store the output.
 	stdoutFile, err := os.Create(stdoutPath)
 	if err != nil {
@@ -166,16 +180,16 @@ func (s *Session) PipeOutputFor(cmdname string, g Goer) error {
 	if err != nil {
 		return errors.Wrap(err, "getting output for "+cmdname)
 	}
-	g.Go(pipeSync(stdoutFile, stdout))
-	g.Go(pipeSync(stderrFile, stderr))
+	g.Go(s.pipeSync(stdoutFile, stdout))
+	g.Go(s.pipeSync(stderrFile, stderr))
 
 	// Add the pipes to the session clients.
 	s.sessionClientsMutex.Lock()
 	if _, ok := s.sessionClients[clientPath]; !ok {
 		s.sessionClients[clientPath] = &sessionClient{}
 	}
-	s.sessionClients[clientPath].stderr = stderrFile
-	s.sessionClients[clientPath].stdout = stdoutFile
+	s.sessionClients[clientPath].stderrPath = stderrPath
+	s.sessionClients[clientPath].stdoutPath = stdoutPath
 	s.sessionClientsMutex.Unlock()
 
 	return nil
@@ -303,7 +317,7 @@ func openOrCreateDir(dirpath string) (*os.File, error) {
 
 // pipeSync pipes an io.ReadCloser to a file and calls
 // Sync on the *os.File after every write.
-func pipeSync(fd *os.File, r io.ReadCloser) func() error {
+func (s *Session) pipeSync(fd *os.File, r io.ReadCloser) func() error {
 	return func() error {
 		for {
 			buf := make([]byte, 256)
@@ -312,8 +326,9 @@ func pipeSync(fd *os.File, r io.ReadCloser) func() error {
 					break
 				}
 			}
+			s.dbg.Debugf("writing %s to %s", string(buf), fd.Name())
 			if _, err := fd.Write(buf); err != nil {
-				return errors.Wrap(err, "writing to stdout file")
+				return errors.Wrap(err, "writing to file")
 			}
 			if err := fd.Sync(); err != nil {
 				return errors.Wrap(err, "syncing file")
@@ -329,14 +344,19 @@ func (s *Session) linesToMessage(r io.Reader, clientName string) (osc.Message, e
 		br    = bufio.NewScanner(r)
 		lines = []string{}
 		m     = osc.Message{
-			Address: nsm.AddressClientLogs,
+			Address: nsm.AddressReply,
 			Arguments: osc.Arguments{
+				osc.String(nsm.AddressClientLogs),
 				osc.String(clientName),
 			},
 		}
 	)
 	for br.Scan() {
-		lines = append(lines, br.Text())
+		txt := strings.TrimSpace(strings.Trim(br.Text(), "\x00"))
+		s.dbg.Debug("got output " + txt + " for client " + clientName)
+		if len(txt) > 0 {
+			lines = append(lines, txt)
+		}
 	}
 	if err := br.Err(); err != nil {
 		return osc.Message{}, errors.Wrap(br.Err(), "scanning lines to channel")
