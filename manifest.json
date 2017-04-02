@@ -1,0 +1,19 @@
+{
+    "dependencies": {
+        "github.com/pkg/errors": {
+            "branch": "master"
+        },
+        "github.com/scgolang/exec": {
+            "branch": "master"
+        },
+        "github.com/scgolang/nsm": {
+            "branch": "master"
+        },
+        "github.com/scgolang/osc": {
+            "branch": "master"
+        },
+        "golang.org/x/sync": {
+            "branch": "master"
+        }
+    }
+}

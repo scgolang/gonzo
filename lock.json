@@ -1,0 +1,61 @@
+{
+    "memo": "",
+    "projects": [
+        {
+            "name": "github.com/imdario/go-ulid",
+            "branch": "master",
+            "revision": "80e2735d1c2c2b1d963bccaa2306f67e5f8d5da9",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/pkg/errors",
+            "branch": "master",
+            "revision": "ff09b135c25aae272398c51a07235b90a75aa4f0",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/scgolang/exec",
+            "branch": "master",
+            "revision": "d6628a3cd504c857d1ba3db627608b41669d09a0",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/scgolang/nsm",
+            "branch": "master",
+            "revision": "5a60aa43c2e9bcbcf27d670868a066c86d6b49ab",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/scgolang/osc",
+            "branch": "master",
+            "revision": "973e996e838584d697efc0d60b107dba525a0763",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "golang.org/x/net",
+            "branch": "master",
+            "revision": "ffcf1bedda3b04ebb15a168a59800a73d6dc0f4d",
+            "packages": [
+                "context"
+            ]
+        },
+        {
+            "name": "golang.org/x/sync",
+            "branch": "master",
+            "revision": "5a06fca2c336a4b2b2fcb45702e8c47621b2aa2c",
+            "packages": [
+                "errgroup"
+            ]
+        }
+    ]
+}

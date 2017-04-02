@@ -219,35 +219,36 @@ func (c *Client) Close() error {
 
 // serveOSC listens for incoming messages from Non Session Manager.
 func (c *Client) serveOSC() error {
-	return c.Serve(c.dispatcher())
+	// Arbitrary number of worker routines.
+	return c.Serve(8, c.dispatcher())
 }
 
 // dispatcher returns the osc Dispatcher for the nsm client.
 func (c *Client) dispatcher() osc.Dispatcher {
 	d := osc.Dispatcher{
-		AddressReply: func(msg osc.Message) error {
+		AddressReply: osc.Method(func(msg osc.Message) error {
 			c.ReplyChan <- msg
 			return nil
-		},
-		AddressClientOpen: func(msg osc.Message) error {
+		}),
+		AddressClientOpen: osc.Method(func(msg osc.Message) error {
 			return c.handleOpen(msg)
-		},
-		AddressClientSave: func(msg osc.Message) error {
+		}),
+		AddressClientSave: osc.Method(func(msg osc.Message) error {
 			response, nsmerr := c.Session.Save()
 			return c.handle(AddressClientSave, response, nsmerr)
-		},
-		AddressClientSessionIsLoaded: func(msg osc.Message) error {
+		}),
+		AddressClientSessionIsLoaded: osc.Method(func(msg osc.Message) error {
 			return c.Session.IsLoaded()
-		},
-		AddressClientShowOptionalGUI: func(msg osc.Message) error {
+		}),
+		AddressClientShowOptionalGUI: osc.Method(func(msg osc.Message) error {
 			return c.Session.ShowGUI(true)
-		},
-		AddressClientHideOptionalGUI: func(msg osc.Message) error {
+		}),
+		AddressClientHideOptionalGUI: osc.Method(func(msg osc.Message) error {
 			return c.Session.ShowGUI(false)
-		},
+		}),
 	}
-	for address, method := range c.Session.Methods() {
-		d[address] = method
+	for address, handler := range c.Session.Methods() {
+		d[address] = handler
 	}
 	return d
 }
