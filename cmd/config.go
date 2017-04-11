@@ -1,9 +1,10 @@
-package main
+package cmd
 
 import (
-	"flag"
 	"os"
 	"path/filepath"
+
+	flag "github.com/spf13/pflag"
 )
 
 const (
@@ -20,15 +21,15 @@ type Config struct {
 }
 
 // NewConfig creates a new config from command line flags.
-func NewConfig() (Config, error) {
+func NewConfig(args []string, flags *flag.FlagSet) (Config, error) {
 	var (
 		c           = Config{}
 		defaultHome = filepath.Join(os.Getenv("HOME"), "gonzo-sessions")
 	)
-	flag.StringVar(&c.Home, "home", defaultHome, "Session manager's home directory")
-	flag.StringVar(&c.Host, "h", "127.0.0.1", "host")
-	flag.IntVar(&c.Port, "p", DefaultPort, "port")
-	flag.BoolVar(&c.DebugFlag, "debug", false, "Print debugging output")
-	flag.Parse()
-	return c, nil
+	flags.StringVar(&c.Home, "home", defaultHome, "Session manager's home directory")
+	flags.StringVar(&c.Host, "h", "127.0.0.1", "host")
+	flags.IntVar(&c.Port, "p", DefaultPort, "port")
+	flags.BoolVar(&c.DebugFlag, "debug", false, "Print debugging output")
+	err := flags.Parse(args)
+	return c, err
 }

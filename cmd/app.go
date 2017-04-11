@@ -1,9 +1,10 @@
-package main
+package cmd
 
 import (
 	"context"
 	"log"
 	"net"
+	"runtime"
 	"strconv"
 
 	"github.com/pkg/errors"
@@ -11,6 +12,9 @@ import (
 	"github.com/scgolang/osc"
 	"golang.org/x/sync/errgroup"
 )
+
+// ApplicationName is the name of the program.
+const ApplicationName = "gonzo"
 
 // App contains all the state for the application.
 type App struct {
@@ -73,15 +77,15 @@ func (app *App) Debugf(format string, args ...interface{}) {
 // dispatcher returns the osc Dispatcher for the application.
 func (app *App) dispatcher() osc.Dispatcher {
 	return osc.Dispatcher{
-		nsm.AddressServerAdd:      app.Add,
+		nsm.AddressServerAdd:      osc.Method(app.Add),
 		nsm.AddressServerAnnounce: app.OscMethod(app.Announce, nsm.AddressServerAnnounce),
-		nsm.AddressClientLogs:     app.ClientLogs,
-		nsm.AddressServerClients:  app.ListClients,
-		nsm.AddressServerSessions: app.ListSessions,
+		nsm.AddressClientLogs:     osc.Method(app.ClientLogs),
+		nsm.AddressServerClients:  osc.Method(app.ListClients),
+		nsm.AddressServerSessions: osc.Method(app.ListSessions),
 		nsm.AddressServerNew:      app.OscMethod(app.NewSession, nsm.AddressServerNew),
-		"/ping":                   app.Ping,
+		"/ping":                   osc.Method(app.Ping),
 		nsm.AddressServerRemove:   app.OscMethod(app.RemoveSession, nsm.AddressServerRemove),
-		nsm.AddressReply:          app.Reply,
+		nsm.AddressReply:          osc.Method(app.Reply),
 	}
 }
 
@@ -109,7 +113,7 @@ func (app *App) initialize() error {
 
 // OscMethod returns an osc.Method which is based on an NsmMethod.
 func (app *App) OscMethod(method NsmMethod, addr string) osc.Method {
-	return func(msg osc.Message) error {
+	return osc.Method(func(msg osc.Message) error {
 		var reply osc.Message
 
 		message, err := method(msg)
@@ -119,7 +123,7 @@ func (app *App) OscMethod(method NsmMethod, addr string) osc.Method {
 			reply = ReplySuccess(msg.Sender, addr, message)
 		}
 		return errors.Wrap(app.SendTo(msg.Sender, reply), "sending reply")
-	}
+	})
 }
 
 // Ping handles /ping messages
@@ -134,7 +138,7 @@ func (app *App) Reply(msg osc.Message) error {
 
 // ServeOSC serves osc requests.
 func (app *App) ServeOSC() error {
-	return app.Serve(app.dispatcher())
+	return app.Serve(runtime.NumCPU(), app.dispatcher())
 }
 
 // Wait waits for all the goroutines to return nil, or for one of them to return a non-nil value, whichever happens first.

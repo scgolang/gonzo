@@ -12,10 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package cmd
 
-import "github.com/scgolang/oscsync/cmd"
+import (
+	"context"
 
-func main() {
-	cmd.Execute()
+	"github.com/spf13/cobra"
+)
+
+// serverCmd represents the server command
+var serverCmd = &cobra.Command{
+	Use:   "server",
+	Short: "Run a gonzo server.",
+	Long:  "Run a gonzo server.",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		config, err := NewConfig(args, cmd.Flags())
+		if err != nil {
+			return err
+		}
+		app, err := NewApp(context.Background(), config)
+		if err != nil {
+			return err
+		}
+		return app.Wait()
+	},
+}
+
+func init() {
+	RootCmd.AddCommand(serverCmd)
 }
